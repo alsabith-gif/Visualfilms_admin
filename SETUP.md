@@ -1158,3 +1158,18 @@ Open the worker app. Home now shows: one big **Your next job** card with an **Op
 | Red "Overdue" label | That job's date has passed and it is not Done yet. |
 | "Owed to you" missing | Nothing is owed: either no finished jobs or all are paid. |
 | Open does not highlight the job | The job is in the Done list; open My Work and look there. |
+
+## Build 23 — Devices signed in (needs one SQL step)
+
+**Step 1 — SQL.** Supabase → SQL Editor → New query → paste everything from **`build23-part11.sql`** → Run. At the bottom you should see **3 rows** (`my_sessions`, `revoke_other_sessions`, `revoke_session`). Safe to run twice. (It is also PART 11 at the end of `supabase/worker-setup.sql`.)
+
+**Step 2 — files.** Upload **`build23_changed_files_only.zip`**, then Ctrl+Shift+R. Settings → About should say **Connect 5 · Devices signed in · build 23**.
+
+**Step 3 — use it.** Settings → **Devices signed in**. Each row shows the device, browser, when it was last used and its IP. Press **Remove** on one you do not recognise, or **Log out all other devices**. The device you are on can't be removed here (use Log out).
+
+| If you see | It means / do this |
+|---|---|
+| "run PART 11 of supabase/worker-setup.sql" | Step 1 was not run yet. |
+| A device still works for a while after Remove | It is logged out the next time its login refreshes (up to about an hour). |
+| Only "This device" is listed | No other device is logged in. |
+| A device you don't know | Remove it, then change your password. |

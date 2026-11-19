@@ -1171,3 +1171,57 @@ end $$;
 select conname, pg_get_constraintdef(oid) as rule
 from pg_constraint
 where conrelid = 'public.worker_tasks'::regclass and contype = 'u';
+
+-- =====================================================================
+-- PART 11 — "Devices signed in": see where your account is logged in, and remove a device
+--           (Build 23: run once, after PART 10). Safe to run twice.
+-- Each person can only ever see and remove THEIR OWN logins. Nothing else is touched.
+-- =====================================================================
+create or replace function public.my_sessions()
+returns table (id uuid, created_at timestamptz, last_seen timestamptz, user_agent text, ip text, is_current boolean)
+language sql stable security definer
+set search_path = public, auth, pg_temp
+as $$
+  select s.id, s.created_at, coalesce(s.updated_at, s.created_at), s.user_agent, host(s.ip),
+         (s.id::text = nullif(nullif(current_setting('request.jwt.claims', true), '')::json ->> 'session_id', ''))
+  from auth.sessions s
+  where s.user_id = auth.uid()
+  order by 3 desc;
+$$;
+
+create or replace function public.revoke_session(p_id uuid)
+returns boolean
+language plpgsql security definer
+set search_path = public, auth, pg_temp
+as $$
+declare cur text := nullif(nullif(current_setting('request.jwt.claims', true), '')::json ->> 'session_id', '');
+begin
+  if auth.uid() is null then raise exception 'Not signed in.'; end if;
+  if p_id::text = cur then raise exception 'That is this device. Use Log out instead.'; end if;
+  delete from auth.sessions where id = p_id and user_id = auth.uid();
+  return found;
+end $$;
+
+create or replace function public.revoke_other_sessions()
+returns integer
+language plpgsql security definer
+set search_path = public, auth, pg_temp
+as $$
+declare cur text := nullif(nullif(current_setting('request.jwt.claims', true), '')::json ->> 'session_id', ''); n integer;
+begin
+  if auth.uid() is null then raise exception 'Not signed in.'; end if;
+  if cur is null then raise exception 'Cannot tell which device this is, so nothing was removed.'; end if;
+  delete from auth.sessions where user_id = auth.uid() and id::text <> cur;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+revoke all on function public.my_sessions() from public, anon;
+revoke all on function public.revoke_session(uuid) from public, anon;
+revoke all on function public.revoke_other_sessions() from public, anon;
+grant execute on function public.my_sessions() to authenticated;
+grant execute on function public.revoke_session(uuid) to authenticated;
+grant execute on function public.revoke_other_sessions() to authenticated;
+
+-- Check: you should see 3 rows
+select proname from pg_proc where proname in ('my_sessions','revoke_session','revoke_other_sessions') and pronamespace = 'public'::regnamespace order by 1;

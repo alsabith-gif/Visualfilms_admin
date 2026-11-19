@@ -93,3 +93,9 @@
 .roles-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .roles-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .roles-add input { flex: 1 1 140px; min-width: 0; }
+
+.dev-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+.dev-row:first-child { border-top: 0; }
+.dev-main { flex: 1; min-width: 0; word-break: break-word; }
+.dev-main small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+#devicesOthersBtn { margin-top: 12px; }

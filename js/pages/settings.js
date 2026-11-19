@@ -9,6 +9,8 @@ import { logout, supabase } from '../cloud.js';
 import { getRoles, loadRoles, slugRole } from '../roles.js';
 import { escHtml } from '../format.js';
 import { APP_VERSION, APP_BUILD } from '../version.js';
+import { describeDevice, agoText, listDevices, removeDevice, removeOtherDevices } from '../devices.js';
+import { openConfirm } from '../modal.js';
 
 function renderModeSwitcher() {
   const mode = getAppMode();
@@ -263,7 +265,54 @@ function renderContentTypes() {
   });
 }
 
+async function renderDevices() {
+  const box = document.getElementById('devicesList');
+  const msg = document.getElementById('devicesMsg');
+  const othersBtn = document.getElementById('devicesOthersBtn');
+  if (!box) return;
+  try {
+    const rows = await listDevices();
+    box.innerHTML = rows.length ? rows.map((d) => {
+      const { device, browser } = describeDevice(d.user_agent);
+      return `<div class="dev-row">
+        <div class="dev-main"><b>${escHtml(device)}${browser ? ` · ${escHtml(browser)}` : ''}</b>${d.is_current ? ' <span class="badge badge-green">This device</span>' : ''}
+          <small>Last used ${escHtml(agoText(d.last_seen))} · signed in ${escHtml(agoText(d.created_at))}${d.ip ? ` · IP ${escHtml(d.ip)}` : ''}</small></div>
+        ${d.is_current ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-dev-remove="${escHtml(d.id)}">Remove</button>`}
+      </div>`;
+    }).join('') : '<p class="muted">No devices found.</p>';
+    othersBtn.style.display = rows.some((d) => !d.is_current) ? '' : 'none';
+    msg.textContent = '';
+  } catch (err) {
+    box.innerHTML = '';
+    othersBtn.style.display = 'none';
+    msg.textContent = err.message;
+  }
+}
+
+function wireDevices() {
+  const box = document.getElementById('devicesList');
+  const msg = document.getElementById('devicesMsg');
+  const othersBtn = document.getElementById('devicesOthersBtn');
+  if (!box) return;
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dev-remove]');
+    if (!b) return;
+    openConfirm('Remove this device? It will be logged out and must log in again.', async () => {
+      try { await removeDevice(b.dataset.devRemove); showToast('Device removed'); } catch (err) { msg.textContent = err.message; }
+      renderDevices();
+    }, null, 'Remove');
+  });
+  othersBtn.addEventListener('click', () => {
+    openConfirm('Log out every other device? Only this one stays logged in.', async () => {
+      try { const n = await removeOtherDevices(); showToast(`${n} device${n === 1 ? '' : 's'} logged out`); } catch (err) { msg.textContent = err.message; }
+      renderDevices();
+    }, null, 'Log out others');
+  });
+}
+
 export function init() {
+  renderDevices();
+  wireDevices();
   const v = document.getElementById('appVersion');
   if (v) v.textContent = `Version: ${APP_VERSION} · ${APP_BUILD}`;
   renderNotifs();
