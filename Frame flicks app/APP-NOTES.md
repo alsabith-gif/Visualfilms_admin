@@ -1,0 +1,252 @@
+# Frame Flicks — App Notes (read this first)
+
+> **For any AI (or person) picking this project up:** this file describes the whole app — what it is, how it is
+> built, where everything lives, the security rules that must never be broken, and how it is tested.
+> Read it top to bottom before changing anything. **Whoever changes the app must also update this file in the
+> same change** (see "How to keep this file up to date" at the bottom).
+
+- **App version when this was last updated:** Phase 4 · Projects page · build 12 · 22 Oct 2026 (see `js/version.js`)
+- **Owner:** one person (the "admin"), a freelance video editor / small studio in India (times are IST, `Asia/Kolkata`).
+  The owner is **not a programmer**. Explain things in plain words, step by step, and say exactly what to click.
+
+---
+
+## 1. What the app is
+
+**Frame Flicks** (internally still called *ClientTrack* in a few places) is a private business app for a video studio:
+
+- **Admin side (the owner):** outreach CRM (prospects, follow-ups, DM scripts), a project **Dashboard** (income, paid/pending),
+  client analysis, price split ("Price Distributor"), invoice maker, calendar with push reminders, shareable
+  client progress links, and a **crew system**: add workers, assign them to projects with a role and pay, see their
+  progress, and mark them paid.
+- **Worker side (the crew):** a separate, light app with **five bottom tabs**: **Home** (today's jobs, next shoot, overdue, own earnings snapshot), **Calendar** (read-only), **Works** (job list; change status To do / In progress / Done; own pay on each card), **Earnings** (own pay only), **Profile** (**Call admin** button, notifications, **anonymous feedback**, Face ID, password, log out). A worker sees **only their own jobs and own pay**.
+- **Client side:** `track.html` — a public read-only page where a client sees their project's stage via a private link.
+
+Everything is **vanilla JavaScript (ES modules), HTML and CSS. There is no build step, no framework, no bundler.**
+Files are uploaded to GitHub and served from Cloudflare (workers.dev). Data lives in **Supabase**
+(Postgres + Auth + Edge Functions + pg_cron).
+
+## 2. Hard rules (never break these)
+
+1. **Workers must never see:** other workers' pay, admin totals, prospects, pricing, invoices, client phone numbers,
+   or project prices. A worker sees only: project name, client *name*, location, shoot date/time, deadline, crew
+   notes, their role, their own pay, their own status.
+2. A worker can change **only the status of their own jobs**, and only through the database function
+   `worker_set_status`. Workers have no insert/update/delete rights on any table.
+3. Notifications never contain pay, phone numbers or prices.
+4. **No secrets in browser code.** The Supabase *anon* key in `js/config.js` is public by design; the service-role key,
+   VAPID private key and `CRON_SECRET` live only in Supabase (edge-function secrets / SQL).
+5. Rules are enforced by the **database (Row Level Security, triggers, security-definer functions)** and server
+   functions — not by hiding buttons. The browser is never trusted.
+6. A worker's browser must never download admin code (admin modules are only dynamically imported after an admin check;
+   test `t11_access.mjs` enforces this — if you add a shared file the worker app imports, add it to that allow-list).
+7. Vanilla JS, no build step. Do not introduce npm dependencies into the browser app.
+8. Keep instructions for the owner simple. They upload files to GitHub in batches under 100 files.
+
+## 3. Architecture at a glance
+
+```
+Browser (admin)  ── index.html → js/bootstrap.js ──► js/main.js + js/pages/*   (admin app)
+Browser (worker) ── index.html → js/bootstrap.js ──► js/worker/workerApp.js     (worker app)
+Public client    ── track.html → js/tracker.js                                   (read-only)
+                           │
+                           ▼
+Supabase: Auth (email + password; workers' first login by 6-digit emailed code)
+          Postgres + RLS (see §6)
+          Edge functions: admin-create-worker, send-reminders
+          pg_cron + pg_net: calls send-reminders every minute
+          Web Push (VAPID) → sw.js shows the notification
+```
+
+**Boot flow (`js/bootstrap.js`):** every sign-in is checked against the `profiles` table.
+`role = 'admin'` → admin app. `role = 'worker'` and `active` → worker app. Deactivated, or no profile → an
+"access problem" screen and sign-out. The role is stored in `cloud.js` (`setRole/getRole`).
+
+**Admin data** is kept in `localStorage` (fast, synchronous; see `js/storage.js`, keys `ve_ct_*`) and synced to the
+Supabase table `app_data` (key/value rows) by `js/cloud.js`. A worker's device never pulls or writes `app_data`.
+**Crew data** (workers, jobs, roles) is *not* in localStorage; it is read/written directly in Supabase tables.
+
+**Router (`js/router.js`):** not URL-based. `showPage(name)` fetches `pages/<name>.html`, injects it, lazy-loads
+`css/<name>.css` and `js/pages/<name>.js`, then calls that module's `init()`.
+
+## 4. File map
+
+### Top level
+| File | What it is |
+|---|---|
+| `index.html` | The app shell (login screen, admin sidebar/shell, worker shell, modal, toast). |
+| `track.html` + `js/tracker.js` | Public client progress page. Reads `project_status` by an unguessable code. |
+| `sw.js` | Service worker. **Push only** — shows notifications and opens the app when tapped. No caching. |
+| `manifest.json`, `assets/` | PWA manifest and icons. |
+| `FrameFlicks.js` | A separate iPhone home-screen widget script (Scriptable). Not part of the web app. |
+| `README.md`, `SETUP.md` | `README.md` = original overview. **`SETUP.md` = step-by-step setup/upgrade instructions, one section per phase.** |
+| `APP-NOTES.md` | This file. |
+
+### `js/` (shared + admin)
+| File | Purpose |
+|---|---|
+| `config.js` | Supabase URL + anon key (public) and an empty VAPID public key (the app asks the server for it). |
+| `cloud.js` | All Supabase access: login/logout, `fetchProfile`, `callWorkerAdmin` (calls the edge function), `app_data` sync, tracker status sync. Holds the signed-in role. |
+| `bootstrap.js` | Runs first on every open; routes admin / worker / blocked. |
+| `main.js`, `router.js`, `modal.js`, `toast.js` | Admin shell, page router, modal + confirm dialog, toast. |
+| `storage.js` | The only place that touches `localStorage` for admin data; queues background cloud sync. |
+| `roles.js` | **The crew role list** (Camera, Editor + admin-defined). Shared by admin and worker apps. Pure; `loadRoles(client)` fetches `crew_roles`. See §7. |
+| `crew.js` | Admin crew logic: `suggestPays`, `validateCrew`, `buildTaskPayloads`, `diffCrew` (pure) + DB helpers (`loadWorkers`, `saveCrewChanges`…). |
+| `crewForm.js` | The "Assign crew" section inside the Add/Edit Project form (worker, role, pay; paid rows are locked). |
+| `crewOverview.js` | Pure helpers for the Workers page (counts, overdue, filtered job list). |
+| `pay.js` | Admin pay tracking (mark paid/unpaid, date checks). Same rules are enforced again by a DB trigger. |
+| `pricing.js` | Pure pricing + price-split maths (`splitPrice`, defaults). |
+| `clients.js`, `format.js`, `imageUtils.js`, `screenshotShare.js`, `followupNudge.js` | CRM helpers. |
+| `reminderRules.js`, `reminders.js` | Admin calendar → `push_reminders` rows (pure rules + sync). |
+| `push.js` | Browser side of Web Push (register SW, permission, subscribe). |
+| `facelock.js` | Per-device Face ID lock (never synced). |
+| `tracklink.js`, `tracker.js` | Build / use the public client progress link. |
+| `version.js` | `APP_VERSION` / `APP_BUILD`, shown on login + Settings → About. **Bump on every release.** |
+
+### `js/pages/` (admin pages, one per sidebar item)
+`prospects`, `goals`, `analysis`, `income` (the **Dashboard**), `clientAnalysis`, `clientDirectory`, **`projectLibrary`** (shown as **Projects**; the internal name stays `projectLibrary` so old links work — a grid of ALL projects; opening one shows a full **detail page**: overview, stage history, payments (incl. invoice advance), invoice, crew from `worker_tasks`, price split, saved links, client progress link, notes; Edit / Delete / links reuse `income.js` exports `openIncomeModal`, `confirmDeleteProject`, `openLinksModal`, `syncTrackerStatus`, `onProjectsChanged`),
+`scripts`, `followup`, `calendar`, `invoice`, `priceSplit`, `tips`,
+**`workers`** (add/edit/deactivate workers with role tick-boxes; each worker opens into a **detail page** — roles, status, last login, actions, job counts, earnings per month, pay history, every job with filters, mark paid / undo; no delete; never shows feedback — plus the all-crew jobs list),
+**`feedback`** (admin-only: crew feedback, date + mood only, mark read, delete), **`settings`** (mode switcher, Face ID, notifications, **Crew roles manager**, **crew contact number**, About, logout).
+Each has a matching `pages/<name>.html` and `css/<name>.css`.
+
+### `js/worker/` (the worker app — a separate, light shell)
+`workerApp.js` (shell, 5 tabs, refresh loop), `workerHome.js` (Home tab), `myWork.js` (Works tab), `workerCalendar.js`, `myEarnings.js`, `workerSettings.js` (the Profile tab), `workerContact.js` (Call-admin button + feedback form),
+`workerNotify.js` (notification choices), `workerData.js` (fetch own jobs, offline cache, `worker_set_status`),
+`workerView.js` (pure date/grouping helpers, `keyDate`), `earningsCalc.js` (pure money rules, in paise).
+
+### `supabase/`
+| File | Purpose |
+|---|---|
+| `worker-setup.sql` | **The whole database setup, in numbered PARTs** (safe to run twice): 1A profiles+admin, 1B lockdown, 1C project_status, 2 worker accounts, 3 jobs, 4 worker status function, 5 pay guard, 6A push, 6B cron sender, 7 final tightening, **8 crew roles**, **9 contact number + anonymous feedback**, **10 one worker can hold several roles on a project**. |
+| `worker-tests.sql` | **Security proof.** Makes pretend users, tries things a worker must not do, deletes everything after. Every row must say PASS (95 checks). |
+| `functions/admin-create-worker/index.ts` | The ONLY place worker accounts are created/changed (service-role key, admin-only). Actions: create, update, set_active, resend_code, reset_access, list_status. |
+| `functions/send-reminders/index.ts` | Sends due push reminders (Verify JWT **off**; protected by the `x-cron-secret` header). Needs secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`. |
+| `push-setup.sql` | Superseded; do not run. |
+
+## 5. Database (Supabase / Postgres)
+
+| Table | Holds | Who can access |
+|---|---|---|
+| `profiles` | One row per login: `user_id`, `role` (admin/worker), `name`, `email`, `active`, `job_role` (main role, kept in sync), `job_roles text[]` (all roles; first = main) | Admin: all. Worker: own row (read). Only the edge function writes workers. |
+| `crew_contact` | ONE row: `phone` the crew's "Call admin" button dials | Admin: all. Active workers: read only. |
+| `feedback` | `message`, optional `mood` (good/okay/bad), `day` (date only), `is_read`, `seq` (order). **No user id, name, email or time** | Admin only (read, mark read, delete). Workers cannot read it. New rows only via `submit_feedback`. |
+| `crew_roles` | The role list: `key`, `label`, `main_date` (`shoot`/`deadline`), `builtin`, `sort_order` | Admin: all. Active workers: read only. |
+| `worker_tasks` | One job per (project, worker, **role**) — PART 10: role, title, client name, location, dates, notes, `pay_amount`, `status`, `pay_status`, `paid_on`, `done_at` | Admin: all. Worker: read own. Writes only by admin (and status via `worker_set_status`). |
+| `app_data` | Admin's business data (key/value). *No `user_id` column.* | Admin only. |
+| `project_status` | Public client progress rows (by `track_code`) | Public read of one code; admin writes. |
+| `push_subscriptions` | A phone's push address | Own rows; add/change needs an active worker or admin. |
+| `push_reminders` | Reminders due at exact times (built by the database from jobs / the admin calendar) | Server only. |
+| `worker_notif_prefs` | A worker's notification choices | Via `worker_set_notif_prefs`. |
+
+**Key functions/triggers:** `is_admin`, `is_active_worker`, `worker_set_status` (the only worker write),
+`worker_set_notif_prefs`, `admin_revoke_sessions`, `worker_tasks_pay_guard` (Done-before-paid, paid amount locked,
+`paid_on` in India time), `rebuild_task_reminders` / `rebuild_worker_reminders` / `push_worker_alert` /
+`worker_wants` / `worker_tasks_notify` / `profiles_notify_active` (notification building),
+`submit_feedback` (security definer: checks the caller is an active worker, then stores the message **without** `auth.uid()`), `crew_roles_guard` (built-ins permanent, roles in use can't be removed), `profiles_sync_roles` (keeps
+`job_roles`/`job_role` consistent and validates roles exist).
+
+**Pay maths** is in **paise** (integers). Earned = Paid + Still owed. A job can only be marked paid when Done; once
+paid its amount is locked (undo paid → change → mark paid again).
+
+## 6. Security model (summary)
+
+- Row Level Security on every table; `revoke all … from anon` where relevant.
+- Workers get data only through RLS-filtered selects and the single `worker_set_status` function.
+- Deactivating a worker: profile `active=false` first (the database stops honouring them immediately), then Supabase
+  sign-in ban, then all sessions revoked.
+- Notifications are built by the database from job rows and never include pay/phone/price; the sender claims a
+  reminder before sending and skips deactivated users.
+- Proof: `supabase/worker-tests.sql` (114 checks) + the test suites in §9.
+
+## 7. Crew roles (Roles update)
+
+- A worker can have **several roles** (e.g. Camera + Editor). `profiles.job_roles` is the list; the **first is the
+  main role** and is mirrored into `profiles.job_role` so older code keeps working.
+- The admin manages the list in **Settings → Crew roles**: add (name + "works to the shoot day" or "works to the
+  deadline"), rename, remove. **Camera and Editor are built in** (rename only). A role cannot be removed while a
+  worker has it or a job uses it.
+- `main_date` replaces the old hard-coded "editor ⇒ deadline" rule: a role that works to the **deadline** is shown with
+  its due date as the key date and an amber badge; a **shoot** role uses the shoot date and a purple badge.
+- **Pay suggestion** (`suggestPays`): the "labour" share of the price split is shared equally by *shoot* roles; the
+  "editing" share by *deadline* roles. It is only a suggestion — the admin can type any amount.
+- One job per worker **per role** per project (PART 10, unique `(project_id, worker_id, role)`): if one person does camera *and* editing on the same project, the admin adds the person twice with different roles, each with its own pay and status. The same role twice is refused. Jobs are identified by worker+role in `crew.js` (`validateCrew`, `diffCrew`, `saveCrewChanges`).
+- `js/roles.js` exports `CREW_ROLES`, `ROLE_LABEL`, `ROLE_MAIN_DATE` as objects that are **updated in place**, so any
+  file that imported them sees the current list. The list is cached in `localStorage` (`ff_crew_roles`) so a worker
+  offline still sees "Drone". If the `crew_roles` table is missing (SQL not run), the app falls back to Camera + Editor.
+- `admin-create-worker` accepts `job_roles` (array) and still accepts a single `job_role` from older code; every role
+  is checked against `crew_roles`.
+
+## 8. Notifications (web push)
+
+`push_reminders` rows are created by the database (jobs → shoot/due reminders and change alerts) and by the admin
+browser (calendar events). `pg_cron` calls `send-reminders` every minute (via `pg_net`, with the `x-cron-secret`
+header); it sends encrypted VAPID web-push messages using `npm:web-push@3.6.7`. `sw.js` displays them. iPhone
+requires "Add to Home Screen" first.
+
+## 9. Tests (all run outside the app, against fakes or a real throwaway Postgres)
+
+| Suite | What it proves |
+|---|---|
+| `worker-tests.sql` (in Supabase) | 114 security checks on the owner's real database. |
+| `sql_phase4/5/6_tests.sql`, `sql_phase8_tests.sql`, `sql_phase9_tests.sql` | Worker status function, pay guard, reminders/notifications, crew roles — on a real Postgres 16 with a fake Supabase schema (`fake_supabase.sql`, `stubs.sql`, `chain.sh`). |
+| `deno/test.js`, `deno/test_admin.js` | `send-reminders` and `admin-create-worker` with fake supabase / web-push. |
+| `vapid/vapid_test.mjs` | Push keys and encryption with Node `web-push`. |
+| `browser/t1…t16` | jsdom tests with a fake `cloud.js` (`cloud_stub.js`): worker app, admin pages, pay, crew lock, delete warning, notifications, access rules (`t11`), roles (`t12`), Home tab (`t13`), contact + feedback (`t14`), worker detail page (`t15`), Projects page (`t16`). |
+
+When you change behaviour: add/adjust a test, run **all** suites, and only then hand over files.
+
+## 10. How the owner deploys changes
+
+1. Upload changed files to GitHub (the repo is served by Cloudflare workers.dev). Replace old files; hard-refresh
+   the browser (Ctrl+Shift+R) if the app looks unstyled or an old screen shows.
+2. If the update includes SQL, run the given `.sql` file in Supabase → SQL Editor first (safe to run twice).
+3. If an edge function changed, paste the new `index.ts` into Supabase → Edge Functions and Deploy.
+4. `SETUP.md` has the exact click-by-click steps per phase.
+
+## 11. Change log
+
+| Build | Date | What changed |
+|---|---|---|
+| Phase 1–3 | Oct 2026 | Profiles + lockdown, worker accounts, assigning crew, My Work. |
+| Phase 4 | Oct 2026 | Workers change job status (`worker_set_status`), `done_at`. |
+| Phase 5 | Oct 2026 | Earnings, marking paid, pay guard trigger (PART 5). |
+| Phase 6 | Oct 2026 | Push notifications, cron sender (PART 6A/6B), edge function `send-reminders`. |
+| Final (build 7) | 14 Oct 2026 | PART 7, security proof `worker-tests.sql` (95 checks), access tests. |
+| Upgrade 1 (build 17) | 24 Oct 2026 | **Invoice PDF download:** Invoice Maker has a **Download PDF** button that only works on a *saved* invoice (any edit after saving disables it until saved again) and a ⬇️ PDF button on every saved invoice; real PDF made in the browser with vendored `js/vendor/html2canvas.min.js` + `jspdf.umd.min.js` (loaded only when needed; long invoices split over A4 pages); old print button kept as 🖨️ Print. **Layout fixes:** `.form-grid` uses `minmax(0,1fr)` + `.form-field{min-width:0}` + inputs `width:100%` (Price Distributor and other forms no longer overflow their card); date/time inputs get fixed sizing for iPhone Safari (overlap); worker Profile forms (password, feedback) have proper spacing above the buttons. No SQL. Tests: `t20_invoice_pdf.mjs`. |
+| Connect 1 (build 19) | 25 Oct 2026 | **One money engine + links.** New pure `js/finance.js` (`projectFinance`, `summarize`, `crewEarnings`): profit = price − assigned crew pay − referral (only if the project is a referral) − set-asides (every Price Distributor row except Labour/Editing/Business/Referral, i.e. Travel + Subscriptions %). Owner's typed expenses are shown separately and NOT subtracted again. `crew.js loadAllCrewTasks()` (admin). Projects detail: "Where the money goes". Invoice → project now also sets due date (function: date + delivery speed; one-time: date + package delivery days; monthly/weekly: period end — only if the project has none), revision limit from the package, referral (new "came via referral?" field), `packageId/packageName/invoiceType`. Project form: "Received so far" on new projects becomes the first payment. Expenses can be tagged to a project (`projectId`). Analysis counts money by payment date and owed by balance. Tests `t23_connected.mjs`. No SQL. |
+| Connect 2 (build 20) | 25 Oct 2026 | **Money page in detail.** Four new sections: *Cash* (received by payment date, paid to crew by `paid_on`, your expenses, **Cash left**, still to receive, still to pay crew), *Where the money goes* (stacked bar + lines: billed → crew → referral → travel/subscriptions set aside → profit %, with set-aside vs typed-expenses comparison), *Clients and projects* (per project price/crew/referral/set-aside/profit/paid/owed), *Crew pay* (per worker assigned/paid/owed). Month picker also lists project start months; cash uses payment/paid dates, the split uses project start month. Crew data loads async; if it fails a banner shows (nothing silently wrong). `finance.js` gets `crewPaidIn`, `crewStillOwed`; `loadAllCrewTasks` also selects `paid_on`. Tests `t24_money_detail.mjs` (t18 label "Left"→"Cash left"). No SQL. |
+| Connect 3 (build 21) | 31 Oct 2026 | **Analysis page: profit and splits.** New top card "Profit and where every rupee goes" with a period picker (All time or a month, by project start): Billed, Crew pay, Business profit, Margin. New cards: *Business profit by month* (last 12), *Most profitable clients*, *How each client's money is split* (billed, crew, referral, travel + subs, profit, margin, paid, owes, with a total row; scrolls sideways on phones), *Crew earnings* (assigned per worker with paid / owed). All use `finance.js` `summarize`/`crewEarnings`, so numbers match the Money and Projects pages. Crew loads async; on failure a banner shows and crew card says unavailable. "Top clients" / "by source" are now labelled as billed amounts. Test `t25_analysis_profit.mjs`. No SQL. |
+| Connect 4 (build 22) | 31 Oct 2026 | **Worker Home simplified.** Home now has just: one big "Your next job" card (today's job first, else oldest overdue, else the next coming up) with a Today/Overdue/date label and a single **Open** button that jumps to that job in My Work and flashes it; a short "This week" list (other open jobs overdue or due within 7 days, max 5, small day labels); and one line "Owed to you ₹X" that opens Earnings. The three counters, "Today's jobs", "Next shoot", "Still to finish" and the earnings pills are gone. `workerHome.js` (`pickNextJob` replaces `nextShoot`), `workerApp.js` (`data-job` jump), `css/worker.css`. Test `t13_home.mjs` rewritten. No SQL. |
+| Connect 5 (build 23) | 19 Nov 2026 | **Devices signed in.** Settings → new card lists every device where your account is logged in (device + browser in plain words, last used, signed in, IP, "This device" badge) with a **Remove** button per device and **Log out all other devices**. New `js/devices.js` (`describeDevice`, `agoText`, `listDevices`, `removeDevice`, `removeOtherDevices`). **SQL PART 11** (`my_sessions()`, `revoke_session(uuid)`, `revoke_other_sessions()`): security definer, fixed search_path, only the caller's OWN logins, current device can't be removed, refuses if the token has no session id, anon has no access. A removed device is logged out when its login next refreshes (up to ~1 hour). Tests `t26_devices.mjs`, `sql_phase11_tests.sql` (15 checks); `fake_supabase.sql` auth.sessions got created_at/updated_at/user_agent/ip. Standalone `build23-part11.sql`. |
+| Upgrade 2 (build 18) | 24 Oct 2026 | **One worker, several roles on one project** (PART 10 SQL swaps the unique rule to `(project_id, worker_id, role)`; `crew.js` keys jobs by worker+role; crew form defaults a second row to the person's other role; clear message if PART 10 was not run). Removed the "listed twice / only one role per project" error for different roles. **Delete client** button on the client's page in Client Directory (confirm; projects/invoices keep the name; the client reappears if a project with that name is saved again). Tests: `sql_phase10_tests.sql`, `t21`, `t22`. |
+| Phase 8 (build 16) | 23 Oct 2026 | **Security proof extended** (`worker-tests.sql` now 114 checks, new section 12): money, expenses, packages and invoices all live in `app_data`, so the proof plants stand-in rows and shows a worker / deactivated worker / signed-out visitor sees, changes, deletes and plants nothing, that every `app_data` rule demands an active admin, that `anon` has no rights, and that no separate expenses/payments/packages/invoice table exists. Feedback: admin can read / mark read / delete, workers cannot edit or delete. Proof's own stand-in rows now use the `__wt_` prefix and are cleaned. `t11_access` also asserts the worker's code never touches money data. No app change except version. |
+| Phase 7 (build 15) | 23 Oct 2026 | **Package builder.** New admin **Packages** page (`pages/packages.html`, `js/pages/packages.js`, `css/packages.css`; "+ Add Package"). One library `packageLib` inside the synced pricing data (`pricing.js`: `normalizePackage`, `packageFeatures`, `packageStats`, `PACKAGE_KINDS`): each package = kind (one-time / monthly / weekly), price, items (name + count), revisions, delivery days, add-ons (name + price), extra lines, popular, active/archived. Packages are archived, never deleted (old invoices keep working). Old monthly/weekly packages are migrated into the library automatically (ids + owner edits kept; `packages` / `weeklyPackages` are now legacy, unused). Invoice Maker: new **One-time package** invoice type (`type: 'onetime'`), package chooser reads the library, package add-ons appear under Extras, "Edit packages" button became "Manage packages" (opens the Packages page). Internal screens only — packages are never sent to workers or the client tracker. No SQL. |
+| Phase 6 (build 14) | 23 Oct 2026 | **Money tracking.** New pure `js/money.js` (received / balance / status from a project's optional `payments: [{id,date,amount,note}]`; legacy projects without a list behave as before); `js/paymentsUi.js` (Payments block + Record-payment modal, `upgradeOldPartials()` turns an old Partial project's invoice advance into a first payment); new admin **Money** page (`pages/money.html`, `js/pages/money.js`, `css/money.css`): month picker, Received / Your expenses / Left / Still to receive, add/delete own expenses (`ve_ct_expenses`, synced via `app_data`, admin only), payments list, who still owes. Projects detail page shows payment history; Dashboard totals, client directory and client analysis use received/balance; once a project has payments its status is read-only (worked out from payments); invoice advance = one payment (`adv`). Crew pay is NOT counted in Money. No SQL. |
+| Phase 5 (build 13) | 22 Oct 2026 | **Weekly package invoice** (`type: 'weekly'` in `invoice.js`, same layout as monthly; `isMo()` = any package invoice, `isWk()` = weekly; own `P.weeklyPackages` + `business.weeklyTag/PayNote/Terms/Footer` in `pricing.js`; 7-day period; project named "Weekly package — …"; old invoices unchanged). **Content Types page removed** (menu, route, `pages/contentTypes.html`, `js/pages/contentTypes.js`, `css/contentTypes.css`; old route redirects to Dashboard); the list (`ve_ct_content_types`) is now edited in Settings → "Project content types". No SQL. |
+| Phase 4 (build 12) | 22 Oct 2026 | "Project Library" renamed **Projects**; project detail page (`projectLibrary.js`); the Dashboard's delete logic became the shared `confirmDeleteProject` (same paid-crew warning); saved links only clickable if http(s). No SQL. |
+| Phase 3 (build 11) | 20 Oct 2026 | Worker detail page on the Workers page (Open button / name link). Removed the long anonymity warning from the worker feedback screen (kept: "does not save or show who sent it"). No SQL. |
+| Phase 2 (build 10) | 20 Oct 2026 | PART 9 (`crew_contact`, `feedback`, `submit_feedback`); worker Profile: Call admin + anonymous feedback; admin Settings: crew contact number; admin Feedback page; proof now 95 checks. |
+| Phase 1 (build 9) | 18 Oct 2026 | Worker app has 5 tabs (Home, Calendar, Works, Earnings, Profile); new Home tab (`workerHome.js`); own pay on Works cards; Settings renamed Profile (old `?page=settings` links still work). No SQL. |
+| Roles update (build 8) | 18 Oct 2026 | Multi-role workers; admin-defined roles (Settings → Crew roles, PART 8, `crew_roles`, `job_roles`); `roles.js`; `main_date` rule replaces hard-coded editor logic; `admin-create-worker` takes `job_roles`; this notes file added. |
+
+## 11b. Roadmap (the owner's "big update" plan)
+Done (also Phase 5: weekly invoice + Content Types page removed; Phase 6: Money tracking; Phase 7: Package builder; Phase 8: security proof extended — **the big update is finished**): worker status, earnings and paying, notifications, security proof, multi-role workers, Phase 1 (5 tabs), **Phase 2 (contact admin + feedback), Phase 3 (worker detail page), **Phase 4 (Projects page)**.
+Next, in this order (owner confirmed):
+8 Extend the security proof.
+**Dropped by the owner: "Delete worker"** (too risky for past pay records). See `HANDOFF.md`.
+
+## 12. How to keep this file up to date
+
+**Rule for every future change (by any AI or person):** in the same change that edits the app, update this file:
+
+1. Add a row to **§11 Change log** (build label, date, one-line summary) and bump `js/version.js`.
+2. If you added, renamed or removed a file → update **§4 File map**.
+3. If you changed tables, columns, functions, triggers or policies → update **§5/§6** and add a new numbered PART to
+   `supabase/worker-setup.sql` (never edit old PARTs in a way that breaks re-running).
+4. If you changed a rule the worker side depends on → re-check **§2 Hard rules** and run `worker-tests.sql`.
+5. If you added or removed tests → update **§9**.
+6. Update the "last updated" line at the top.
+7. Add a short section to `SETUP.md` telling the owner, in plain words, what to run/upload.
+
+Keep this file accurate rather than long. If something here is out of date, fix it.
