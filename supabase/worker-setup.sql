@@ -1,5 +1,5 @@
 -- =====================================================================
--- Frame Flicks — worker system. ALL new SQL lives in this one file.
+-- Visual Films — worker system. ALL new SQL lives in this one file.
 -- Run it in Supabase → SQL Editor, one PART at a time, in order.
 -- Each part is safe to run twice.
 -- =====================================================================

@@ -27,11 +27,11 @@ export async function enable() {
   const credential = await navigator.credentials.create({
     publicKey: {
       challenge: randomBytes(32),
-      rp: { name: 'ClientTrack' },
+      rp: { name: 'Visual Films' },
       user: {
         id: randomBytes(16),
         name: 'clienttrack-device-lock',
-        displayName: 'ClientTrack Device Lock',
+        displayName: 'Visual Films Device Lock',
       },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },

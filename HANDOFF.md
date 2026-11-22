@@ -1,6 +1,6 @@
 # HANDOFF — where the big update stands (read with APP-NOTES.md)
 
-**Current version:** Connect 5 · Devices signed in · build 23 (25 Oct 2026)
+**Current version:** Visual Films · New name + logo · build 24 (25 Oct 2026)
 
 ## Done
 - Worker system complete and security-proofed (status, earnings/pay, notifications, `worker-tests.sql`).

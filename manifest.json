@@ -1,6 +1,6 @@
 {
-  "name": "ClientTrack",
-  "short_name": "ClientTrack",
+  "name": "Visual Films",
+  "short_name": "Visual Films",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0a0a0c",

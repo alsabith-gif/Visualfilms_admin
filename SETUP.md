@@ -89,7 +89,7 @@ The WhatsApp number and email shown on the client page are set directly in
 
 ```js
 const CONTACT_WHATSAPP = '918921706042'; // country code + number, no + or spaces
-const CONTACT_EMAIL = 'muhammedalsabith111@gmail.com';
+const CONTACT_EMAIL = 'visualfilms111@gmail.com';
 ```
 
 Edit those two lines if either ever changes.
@@ -128,7 +128,7 @@ Each phase adds steps below. Do them in order. All SQL lives in
 > "Setup not finished" instead of opening.
 
 1. **Find your login email.** Supabase → SQL Editor → run
-   `select id, email from auth.users;` and note the email you log in to Frame Flicks with.
+   `select id, email from auth.users;` and note the email you log in to Visual Films with.
 2. **Run PART 1A** of `supabase/worker-setup.sql`. First replace
    `YOUR_ADMIN_LOGIN_EMAIL` with that email. The last query must show **one row,
    role = admin**. If it shows nothing, the email was wrong — fix it and run 1A again.
@@ -205,11 +205,11 @@ team, so real workers would never get their code. Set up your own sender (free):
 **Easiest — use your Gmail**
 1. Google Account → Security → turn on **2-Step Verification**.
 2. Open https://myaccount.google.com/apppasswords → create an app password
-   called "Frame Flicks" → copy the 16 letters.
+   called "Visual Films" → copy the 16 letters.
 3. Supabase → **Authentication** → **Emails** (or **SMTP Settings**) →
    **Enable custom SMTP**, then fill in:
    - Sender email: your Gmail address
-   - Sender name: `Frame Flicks`
+   - Sender name: `Visual Films`
    - Host: `smtp.gmail.com`
    - Port: `465`
    - Username: your Gmail address
@@ -222,10 +222,10 @@ Authentication → Rate Limits.
 
 ### 4. Make the email show the 6-digit code
 Supabase → **Authentication** → **Email Templates** → **Magic Link**.
-Set the subject to `Your Frame Flicks login code` and replace the body with:
+Set the subject to `Your Visual Films login code` and replace the body with:
 
 ```html
-<h2>Your Frame Flicks login code</h2>
+<h2>Your Visual Films login code</h2>
 <p>Type this code into the app:</p>
 <p style="font-size:28px;letter-spacing:6px;font-weight:bold">{{ .Token }}</p>
 <p>It stops working after an hour. If you didn't ask for it, ignore this email.</p>
@@ -247,7 +247,7 @@ must never be inside the app — Supabase gives it to the function by itself, so
    Command-line alternative: `supabase functions deploy admin-create-worker --no-verify-jwt`
 
 ### 6. Upload the new app files (GitHub, same as before)
-Unzip, open the folder until you are inside **Frame flicks app**, and upload
+Unzip, open the folder until you are inside **Visual Films app**, and upload
 everything inside it to the folder on GitHub that already has `index.html`.
 Wait 1–2 minutes, then hard-refresh (Ctrl + Shift + R). The login screen should
 show **Phase 2 · worker accounts · build 2**. If it still says Phase 1, the
@@ -318,7 +318,7 @@ choose that). At the bottom you must see **exactly two** lines:
 (Nothing else is needed on Supabase for this phase: no new function, no new key.)
 
 ### 2. Upload the new app files (GitHub, same as before)
-Unzip, go inside **Frame flicks app**, upload everything inside to the GitHub folder that
+Unzip, go inside **Visual Films app**, upload everything inside to the GitHub folder that
 has `index.html`. Changed/new this time: `index.html`, `css/income.css`, `css/worker.css`,
 `js/bootstrap.js`, `js/crew.js`, `js/crewForm.js`, `js/version.js`, `js/pages/income.js`,
 `js/pages/invoice.js`, `js/pages/workers.js`, the whole `js/worker/` folder, and
@@ -395,7 +395,7 @@ It is safe to run twice. **Do this before step 2** — if you upload the app fir
 page will say it needs PART 4 and status buttons will show an error until you run it.
 
 ### 2. Upload the new app files (GitHub, same as before)
-Unzip, go inside **Frame flicks app**, upload everything inside to the GitHub folder that has
+Unzip, go inside **Visual Films app**, upload everything inside to the GitHub folder that has
 `index.html`. Changed/new this time: `css/worker.css`, `css/workers.css`, `js/version.js`,
 `js/crewOverview.js` (new), `js/pages/workers.js`, `pages/workers.html`, the `js/worker/`
 folder (`workerApp.js`, `workerCalendar.js` (new), `workerData.js`, `workerView.js`,
@@ -613,7 +613,7 @@ Upload the files from the zip(s) over the old ones. Wait for Cloudflare to finis
 
 **A worker (use your test worker's phone):**
 1. Android: open the app in Chrome and log in as the worker. **iPhone:** open the site in Safari → **Share** →
-   **Add to Home Screen** → open **Frame Flicks from the Home Screen icon** (this is required by Apple) and log in.
+   **Add to Home Screen** → open **Visual Films from the Home Screen icon** (this is required by Apple) and log in.
 2. **Settings** → **Notifications** → **Turn on notifications on this phone** → tap **Allow**.
 3. Tap **Send me a test**. It should arrive within a few seconds.
 4. As admin, assign that worker a new job (or change the date of one). Within about a minute the worker's phone
@@ -632,7 +632,7 @@ Upload the files from the zip(s) over the old ones. Wait for Cloudflare to finis
 | Logs say "forbidden" (403) | The text in PART 6B is not the same as `CRON_SECRET`. Fix it and run PART 6B again. |
 | Logs say "VAPID keys are not saved yet" / "not valid" | Step 3: re-paste the keys with no spaces or quotes; `VAPID_SUBJECT` must start with `mailto:`. |
 | iPhone shows "Add to Home Screen" instead of a button | Open the app from the Home Screen icon, not Safari. Needs iOS 16.4 or newer. |
-| "Notifications are blocked" | Phone Settings → Notifications → Frame Flicks (or Chrome → site settings) → Allow. |
+| "Notifications are blocked" | Phone Settings → Notifications → Visual Films (or Chrome → site settings) → Allow. |
 | A worker got nothing after being re-activated | They must tap **Turn on notifications on this phone** again (their old phone is forgotten when deactivated). |
 | Everything stopped after you made new keys | Every phone must turn notifications off and on again. |
 
@@ -1173,3 +1173,22 @@ Open the worker app. Home now shows: one big **Your next job** card with an **Op
 | A device still works for a while after Remove | It is logged out the next time its login refreshes (up to about an hour). |
 | Only "This device" is listed | No other device is logged in. |
 | A device you don't know | Remove it, then change your password. |
+
+## Build 24 — renamed to Visual Films (new name, logo, email)
+
+**Step 1 — upload.** Unzip **`build24_for_github_root.zip`** and upload what is inside (the `assets`, `css`, `js`, `pages`, `supabase` folders, `sw.js`, `manifest.json`, `index.html`, `track.html`, `vapid-keys.html`, `VisualFilms.js` and the .md files) to the **main page** of your GitHub repository (not into a sub-folder). Commit, wait for Cloudflare, then Ctrl+Shift+R. Settings → About should say **Visual Films · New name + logo · build 24**.
+
+**Step 2 — delete the old files on GitHub** (so nothing old is left): `assets/frameflicks-logo.png`, `assets/frameflicks-icon.png` and `FrameFlicks.js` (open each file → the three dots → Delete file → Commit).
+
+**Step 3 — admin login email (optional, only if you want to log in with the new email).** Supabase → SQL Editor → paste **`build24-admin-email.sql`**, replace `OLD-ADMIN-EMAIL` with your current admin email, Run. Then log in with **visualfilms111@gmail.com** and your same password.
+
+**Step 4 — notification email.** Supabase → Edge Functions → Secrets → set `VAPID_SUBJECT` to `mailto:visualfilms111@gmail.com`.
+
+**Step 5 — home-screen app.** The installed icon and name only refresh when you remove the app from the Home Screen and add it again.
+
+| If you see | It means / do this |
+|---|---|
+| Old logo still showing | Ctrl+Shift+R; on a phone close the app fully, or remove and re-add it to the Home Screen. |
+| "Old email not found" | The old email in Step 3 is typed wrong — nothing changed. |
+| "The new email is already used" | Another account already has visualfilms111@gmail.com. |
+| Invoice still says Frame Flicks | You typed a custom name earlier — change it in Packages → business details. |

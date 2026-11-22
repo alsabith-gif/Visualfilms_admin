@@ -16,7 +16,7 @@ const DEFAULT_STAGES = ['Received', 'Rough Cut', 'Color & Sound', 'Review', 'Del
 // Your contact details for the client "get in touch" buttons. Edit these
 // two lines if your number or email ever changes.
 const CONTACT_WHATSAPP = '918921706042'; // country code + number, no + or spaces
-const CONTACT_EMAIL = 'muhammedalsabith111@gmail.com';
+const CONTACT_EMAIL = 'visualfilms111@gmail.com';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

@@ -41,12 +41,12 @@ export async function mountNotifyPanel(el) {
       <ol class="muted" style="padding-left:18px;margin:6px 0">
         <li>Open this page in <b>Safari</b>.</li>
         <li>Tap the <b>Share</b> button, then <b>Add to Home Screen</b>.</li>
-        <li>Open <b>Frame Flicks</b> from your Home Screen and come back to this screen.</li>
+        <li>Open <b>Visual Films</b> from your Home Screen and come back to this screen.</li>
       </ol>`);
     return;
   }
   if (st.permission === 'denied') {
-    draw('<p class="muted">Notifications are <b>blocked</b> for this app on this phone. Allow them in your phone settings (Settings → Notifications → Frame Flicks, or the site settings in Chrome), then open this screen again.</p>');
+    draw('<p class="muted">Notifications are <b>blocked</b> for this app on this phone. Allow them in your phone settings (Settings → Notifications → Visual Films, or the site settings in Chrome), then open this screen again.</p>');
     return;
   }
 

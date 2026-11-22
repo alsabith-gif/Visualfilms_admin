@@ -51,7 +51,7 @@ function setup(): string | null {
   if (!pub || !priv) return "VAPID keys are not saved yet (see SETUP.md).";
   if (!pushReady) {
     try {
-      webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com", pub, priv);
+      webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:visualfilms111@gmail.com", pub, priv);
       pushReady = true;
     } catch (e) {
       return "The VAPID keys or VAPID_SUBJECT are not valid: " + (e as Error).message;
@@ -69,7 +69,7 @@ async function sendToUser(userId: string, payload: Record<string, unknown>): Pro
   if (!(await isActiveProfile(userId))) return 0;
   const { data: subs } = await db!.from("push_subscriptions").select("*").eq("user_id", userId);
   const text = JSON.stringify({
-    title: String(payload.title ?? "Frame Flicks").slice(0, 120),
+    title: String(payload.title ?? "Visual Films").slice(0, 120),
     body: String(payload.body ?? "").slice(0, 240),
     url: safeUrl(payload.url),
     tag: typeof payload.tag === "string" ? payload.tag.slice(0, 100) : undefined,
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     const { data } = token ? await db!.auth.getUser(token) : { data: null };
     if (!data?.user) return json({ error: "not logged in" }, 401);
     const sent = await sendToUser(data.user.id, {
-      title: "Frame Flicks",
+      title: "Visual Films",
       body: "Notifications are working. Your reminders will show up like this.",
       url: "./index.html",
       tag: "test",

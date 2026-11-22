@@ -212,7 +212,7 @@ async function enterApp({ justLoggedIn = false, viaOtp = false } = {}) {
   if (!profile) {
     showAccessProblem(
       'No access yet',
-      'This account has not been set up for Frame Flicks. Ask the admin to add you.',
+      'This account has not been set up for Visual Films. Ask the admin to add you.',
       { retry: false }
     );
     return;

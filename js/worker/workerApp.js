@@ -1,5 +1,5 @@
 // worker/workerApp.js — the worker's own, lighter app shell. It is only ever
-// opened for a signed-in worker (see bootstrap.js). It shares the Frame Flicks
+// opened for a signed-in worker (see bootstrap.js). It shares the Visual Films
 // look but has none of the admin menu, and never loads admin code or data.
 //
 // Pages are listed in PAGES, so a new tab is just a new entry here.

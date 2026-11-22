@@ -67,10 +67,10 @@ export const DEFAULT_PRICING = {
   delivery: { normal: 0, fast: 20, sameDay: 50 }, // surcharge %
   crew: 2,
   business: {
-    name: 'Frame Flicks',
+    name: 'Visual Films',
     phone: '',
     upi: '',
-    footer: 'Thank you for choosing Frame Flicks',
+    footer: 'Thank you for choosing Visual Films',
     payNote: 'Balance due on delivery.',
     monthlyTag: 'Instagram content made simple',
     monthlyPayNote: 'Your shoot slots are confirmed once payment is received.',
@@ -119,6 +119,11 @@ export function mergePricing(saved) {
   out.sizes = { ...d.sizes, ...(s.sizes || {}) };
   out.delivery = { ...d.delivery, ...(s.delivery || {}) };
   out.business = { ...d.business, ...(s.business || {}) };
+  // Renamed Frame Flicks -> Visual Films: update saved text that is still EXACTLY the old default
+  // (anything you typed yourself is left alone).
+  for (const [k, v] of Object.entries(out.business)) {
+    if (typeof v === 'string' && /Frame [Ff]licks/.test(v) && (v === 'Frame Flicks' || v === 'Thank you for choosing Frame Flicks')) out.business[k] = v.replace(/Frame [Ff]licks/g, 'Visual Films');
+  }
   out.distribution = Array.isArray(s.distribution) && s.distribution.length
     ? s.distribution.map((row) => ({ ...row }))
     : d.distribution.map((row) => ({ ...row }));

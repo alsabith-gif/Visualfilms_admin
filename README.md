@@ -1,4 +1,4 @@
-# ClientTrack
+# Visual Films
 
 A dark-themed CRM/dashboard for freelance video editors to find, track, and close clients. Plain HTML/CSS/vanilla JS, no build step, everything saved to your browser's localStorage.
 

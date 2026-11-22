@@ -1,5 +1,5 @@
 -- =====================================================================
--- Frame Flicks — SECURITY PROOF for worker accounts
+-- Visual Films — SECURITY PROOF for worker accounts
 -- Run this WHOLE file in Supabase → SQL Editor (click Run once).
 --
 -- What it does: it makes four pretend people (an admin, two workers and a

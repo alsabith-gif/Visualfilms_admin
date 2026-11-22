@@ -9,7 +9,7 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data ? event.data.text() : '' }; }
-  const title = data.title || 'Frame Flicks';
+  const title = data.title || 'Visual Films';
   // iOS requires every push to show a notification, so always call this.
   event.waitUntil(self.registration.showNotification(title, {
     body: data.body || '',
