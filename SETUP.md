@@ -1192,3 +1192,14 @@ Open the worker app. Home now shows: one big **Your next job** card with an **Op
 | "Old email not found" | The old email in Step 3 is typed wrong — nothing changed. |
 | "The new email is already used" | Another account already has visualfilms111@gmail.com. |
 | Invoice still says Frame Flicks | You typed a custom name earlier — change it in Packages → business details. |
+
+## Build 25 — black logo (the white one could not be seen)
+
+Upload the contents of **`build25_for_github_root.zip`** to the main page of your GitHub repository (it has only the changed files: `assets`, `index.html`, `track.html`, `js/version.js` and the .md files). Commit, wait for Cloudflare, Ctrl+Shift+R. Settings → About should say **Visual Films · Black logo fix · build 25**.
+
+The login page, lock screens, sidebar and client tracking page now show the **black** logo. The white logo is saved as `assets/visualfilms-logo-white.png` for dark backgrounds.
+
+| If you see | It means / do this |
+|---|---|
+| The logo is still white / missing | The old file is cached: Ctrl+Shift+R, or close the app fully and reopen. |
+| Home-screen icon looks the same | It only refreshes when you remove the app from the Home Screen and add it again. |

@@ -2,5 +2,5 @@
 // tell at a glance which version of the app is actually live.
 // Bumped at the end of every worker-system phase.
 
-export const APP_VERSION = 'Visual Films · New name + logo';
-export const APP_BUILD = 'build 24 · 22 Nov 2026';
+export const APP_VERSION = 'Visual Films · Black logo fix';
+export const APP_BUILD = 'build 25 · 22 Nov 2026';
